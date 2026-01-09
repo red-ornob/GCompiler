@@ -17,16 +17,17 @@ static class Program
         
         
         using var lexer = new Lexer(args[0]);
-        while (true)
+        while (!lexer.EndOfStream)
         {
             try
             {
-                if (lexer.Advance() is { } token) Console.WriteLine(token.ToString());
-                else break;
+                var tokens = lexer.Advance();
+                foreach (var token in tokens) Console.WriteLine(token);
             }
             catch (LexerException e)
             {
-                Console.Error.Write(e.Message);
+                Console.Error.WriteLine("Lexer Exception");
+                Console.Error.WriteLine(e.Message);
                 break;
             }
         }
