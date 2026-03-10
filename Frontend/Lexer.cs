@@ -26,30 +26,36 @@ internal class Lexer(string filePath): IDisposable
         {
             if (char.IsLetter(CurrChar) || CurrChar == '_')
             {
-                _tokenList.Add(LexIdentifier());
+                _tokenList.Add(new Token(LexIdentifier(out var identifierType), identifierType));
                 continue;
             }
             
-            if (char.IsDigit(CurrChar) || CurrChar == '.')
+            if (char.IsDigit(CurrChar) || (CurrChar == '.' && NextChar != '.'))
             {
-                _tokenList.Add(LexIntegerLiteral());
+                _tokenList.Add(new Token(LexIntegerLiteral(out var integerType), integerType));
                 continue;
             }
             
             if (CurrChar == '/' && NextChar is '/' or '*')
             {
-                _tokenList.Add(LexComment());
+                _tokenList.Add(new Token(LexComment(), TokenType.Comment));
                 continue;
             }
             
             if (CurrChar == ';')
             {
-                _tokenList.Add(new Token(TokenType.Semicolon, null));
+                _tokenList.Add(new Token(null, TokenType.Semicolon));
                 continue;
             }
             
             if (char.IsWhiteSpace(CurrChar))
             {
+                continue;
+            }
+            
+            if (LexOperatorAndPunctuation() is { } op)
+            {
+                _tokenList.Add(new Token(op, TokenType.OperatorAndPunctuation));
                 continue;
             }
             
@@ -59,14 +65,14 @@ internal class Lexer(string filePath): IDisposable
         return _tokenList;
     }
     
-    private Token LexIdentifier()
+    private string LexIdentifier(out TokenType identifierType)
     {
         var startIndex = _charNum;
         var length = 0;
         for (; _charNum < _line.Length && (char.IsLetterOrDigit(CurrChar) || CurrChar == '_'); _charNum++) length++;
         _charNum--;
         
-        Span<String> keywords = [
+        Span<string> keywords = [
             "break", "default", "func", "interface", "select",
             "case", "defer", "go", "map", "struct",
             "chan", "else", "goto", "package", "switch",
@@ -74,12 +80,12 @@ internal class Lexer(string filePath): IDisposable
             "continue", "for", "import", "return", "var"
         ];
         
-        if (keywords.Contains(_line.Substring(startIndex, length))) return new(TokenType.Keyword, _line.Substring(startIndex, length));
-        
-        return new(TokenType.Identifier, _line.Substring(startIndex, length));
+        identifierType = TokenType.Identifier;
+        if (keywords.Contains(_line.Substring(startIndex, length))) identifierType = TokenType.Keyword;
+        return _line.Substring(startIndex, length);
     }
     
-    private Token LexIntegerLiteral()
+    private string LexIntegerLiteral(out TokenType integerType)
     {
         var startIndex = _charNum;
         var length = 0;
@@ -106,12 +112,16 @@ internal class Lexer(string filePath): IDisposable
             }
         }
         
-        if (_charNum < _line.Length && CurrChar == 'i') 
-            return new(TokenType.ImaginaryLiteral, _line.Substring(startIndex, ++length));
+        integerType = TokenType.ImaginaryLiteral;
+        if (_charNum < _line.Length && CurrChar == 'i')
+            return _line.Substring(startIndex, ++length);
         _charNum--;
         
-        if (isFloat) return new(TokenType.FloatingPointLiteral, _line.Substring(startIndex, length));
-        return new(TokenType.IntegerLiteral, _line.Substring(startIndex, length));
+        integerType = TokenType.FloatingPointLiteral;
+        if (isFloat) return _line.Substring(startIndex, length);
+        
+        integerType = TokenType.IntegerLiteral;
+        return _line.Substring(startIndex, length);
     }
     
     private bool InBase(char intChar, char baseChar)
@@ -120,8 +130,7 @@ internal class Lexer(string filePath): IDisposable
         Span<char> octalDigits = ['0', '1', '2', '3',  '4', '5', '6', '7'];
         Span<char> hexDigits = ['0', '1', '2', '3',  '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
         
-        baseChar = char.ToLower(baseChar);
-        return baseChar switch
+        return char.ToLower(baseChar) switch
         {
             '0' => char.IsDigit(intChar),
             'b' => binaryDigits.Contains(intChar),
@@ -131,13 +140,13 @@ internal class Lexer(string filePath): IDisposable
         };
     }
     
-    private Token LexComment()
+    private string LexComment()
     {
         var startIndex = _charNum;
         if (NextChar == '/')
         {
             _charNum = _line.Length;
-            return new(TokenType.Comment, _line.Substring(startIndex));
+            return _line.Substring(startIndex);
         }
         
         var stringBuilder = new StringBuilder();
@@ -158,7 +167,30 @@ internal class Lexer(string filePath): IDisposable
         _charNum = _line.IndexOf("*/", StringComparison.Ordinal) + 1;
         if (_charNum == 0) throw new LexerException($"Invalid comment {Position}");
         stringBuilder.Append(_line.Substring(0, _charNum + 1));
-        return new(TokenType.Comment, stringBuilder.ToString());
+        return stringBuilder.ToString();
+    }
+    
+    private string? LexOperatorAndPunctuation()
+    {
+        List<string> punctuations =
+        [
+            "+", "&", "+=", "&=", "&&", "==", "!=", "(", ")", "-", "|", "-=", "|=", "||", 
+            "<", "<=", "[", "]", "*", "^", "*=", "^=", "<-", ">", ">=", "{", "}", "/",
+            "<<", "/=", "<<=", "++", "=", ":=", ",", "%", ">>", "%=", ">>=", "--", 
+            "!", "...", ":", "&^", "&^=", "~"
+        ];
+        
+        for (var i = 3; i > 0; i--)
+        {
+            if (_charNum + i > _line.Length) continue;
+            var currWord = _line[_charNum..(_charNum+i)];
+            if (punctuations.Where(n => n.Length == i).ToList().Contains(currWord))
+            {
+                _charNum += i;
+                return currWord;
+            }
+        }
+        return null;
     }
     
     public void Dispose()
@@ -181,7 +213,7 @@ internal enum TokenType
     StringLiteral,
 }
 
-internal class Token(TokenType tokenType, string? value)
+internal class Token(string? value, TokenType tokenType)
 {
     TokenType Type { get; } = tokenType;
     string? Value { get; } = value;
