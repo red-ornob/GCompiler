@@ -12,7 +12,7 @@ internal class Lexer(string filePath): IDisposable
     
     private char CurrChar => _charNum < _line.Length ? _line[_charNum] : '\0';
     private char NextChar => _charNum + 1 < _line.Length ? _line[_charNum + 1] : '\0';
-    private string Position => $"{_lineCount}:{_charNum + 1} at {filePath}";
+    private string Position(int lineOffset = 0, int charOffset = 0) => $"{_lineCount + lineOffset}:{_charNum + 1 + charOffset} at {filePath}";
     public bool EndOfStream => _fs.EndOfStream;
     
     public List<Token> Advance()
@@ -48,6 +48,18 @@ internal class Lexer(string filePath): IDisposable
                 continue;
             }
             
+            if (CurrChar == '\'')
+            {
+                _tokenList.Add(new Token(LexRuneLiteral(), TokenType.RuneLiteral));
+                continue;
+            }
+            
+            if (CurrChar is '\"' or '\'')
+            {
+                _tokenList.Add(new Token(LexStringLiteral(), TokenType.StringLiteral));
+                continue;
+            }
+            
             if (char.IsWhiteSpace(CurrChar))
             {
                 continue;
@@ -59,7 +71,7 @@ internal class Lexer(string filePath): IDisposable
                 continue;
             }
             
-            throw new LexerException($"Unidentifiable token start: {Position}");
+            throw new LexerException($"Unidentifiable token start: {Position()}");
         }
         
         return _tokenList;
@@ -99,15 +111,15 @@ internal class Lexer(string filePath): IDisposable
             _charNum += 2;
         }
         
-        for (; _charNum < _line.Length 
+        for (; _charNum < _line.Length
                && (InBase(CurrChar, currBase) || CurrChar == '_' || CurrChar == '.'); _charNum++)
         {
             length++;
             if ((CurrChar == '_' && !InBase(NextChar, currBase)) || (NextChar == '_' && !InBase(CurrChar, currBase))) 
-                throw new LexerException($"Invalid integer literal: {Position}");
+                throw new LexerException($"Invalid integer literal: {Position()}");
             if (CurrChar == '.')
             {
-                if (isFloat) throw new LexerException($"Invalid integer literal: {Position}");
+                if (isFloat) throw new LexerException($"Invalid integer literal: {Position()}");
                 isFloat = true;
             }
         }
@@ -136,7 +148,7 @@ internal class Lexer(string filePath): IDisposable
             'b' => binaryDigits.Contains(intChar),
             'o' => octalDigits.Contains(intChar),
             'x' => hexDigits.Contains(char.ToUpper(intChar)),
-            _ => throw new LexerException($"Invalid base character: {Position}")
+            _ => throw new LexerException($"Invalid base character: {Position()}")
         };
     }
     
@@ -165,7 +177,7 @@ internal class Lexer(string filePath): IDisposable
         }
         
         _charNum = _line.IndexOf("*/", StringComparison.Ordinal) + 1;
-        if (_charNum == 0) throw new LexerException($"Invalid comment {Position}");
+        if (_charNum == 0) throw new LexerException($"Invalid comment {Position()}");
         stringBuilder.Append(_line.Substring(0, _charNum + 1));
         return stringBuilder.ToString();
     }
@@ -183,7 +195,7 @@ internal class Lexer(string filePath): IDisposable
         for (var i = 3; i > 0; i--)
         {
             if (_charNum + i > _line.Length) continue;
-            var currWord = _line[_charNum..(_charNum+i)];
+            var currWord = _line[_charNum..(_charNum + i)];
             if (punctuations.Where(n => n.Length == i).ToList().Contains(currWord))
             {
                 _charNum += i;
@@ -191,6 +203,50 @@ internal class Lexer(string filePath): IDisposable
             }
         }
         return null;
+    }
+    
+    private string LexRuneLiteral()
+    {
+        _charNum++;
+        if (CurrChar != '\\') throw new LexerException($"Invalid rune literal: {Position()}");
+        
+        _charNum++;
+        var rune = CurrChar;
+        
+        _charNum++;
+        if (CurrChar != '\'') throw new LexerException($"Invalid rune literal: {Position()}");
+        
+        return rune switch
+        {
+            'a' => @"\a",
+            'b' => @"\b",
+            'f' => @"\f",
+            'n' => @"\n",
+            'r' => @"\r",
+            't' => @"\t",
+            'v' => @"\v",
+            '\\' => @"\\",
+            '\'' => @"\'",
+            '\"' => @"\""",
+            _ => throw new LexerException($"Invalid rune literal: {Position(0, -1)}")
+        };
+    }
+    
+    private string LexStringLiteral()
+    {
+        var startIndex = _charNum;
+        var stringStart = _line[_charNum];
+        _charNum++;
+        
+        while (_charNum < _line.Length && CurrChar != stringStart)
+        {
+            if (CurrChar == '\\' && NextChar == stringStart) _charNum++;
+            _charNum++;
+        }
+        
+        if (CurrChar != stringStart) throw new LexerException($"Invalid string literal: {Position()}");
+        
+        return _line[startIndex..(_charNum + 1)];
     }
     
     public void Dispose()

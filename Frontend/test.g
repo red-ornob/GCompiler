@@ -52,6 +52,24 @@ comment */bar
 2.71828i
 .25i
 
+'\a'
+'\b'
+'\f'
+'\n'
+'\r'
+'\t'
+'\v'
+'\\'
+'\''
+'\"'
+
+"\n"
+"\""
+"Hello, world!\n"
+"日本語"
+"\u65e5本\U00008a9e"
+"\xff\u00FF"
+
 /* 
 test for end of stream 
 */
