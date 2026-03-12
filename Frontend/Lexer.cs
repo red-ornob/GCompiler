@@ -45,7 +45,7 @@ internal class Lexer(string filePath)
                     _tokenList.Add(new Token(null, TokenType.Semicolon));
                     break;
                 
-                case '\'' when NextChar == '\\':
+                case '\'' when NextChar is '\\':
                     _tokenList.Add(new Token(LexRuneLiteral(), TokenType.RuneLiteral));
                     break;
                 
@@ -71,9 +71,12 @@ internal class Lexer(string filePath)
     private string LexIdentifier(out TokenType identifierType)
     {
         var startIndex = _charNum;
-        var length = 0;
-        for (; _charNum < _line.Length && (char.IsLetterOrDigit(CurrChar) || CurrChar == '_'); _charNum++) length++;
+        while ((char.IsLetterOrDigit(CurrChar) || CurrChar is '_') && _charNum < _line.Length)
+        {
+            _charNum++;
+        }
         _charNum--;
+        var identifier = _line[startIndex..(_charNum + 1)];
         
         Span<string> keywords = [
             "break", "default", "func", "interface", "select",
@@ -82,49 +85,49 @@ internal class Lexer(string filePath)
             "const", "fallthrough", "if", "range", "type",
             "continue", "for", "import", "return", "var"
         ];
+        identifierType = keywords.Contains(identifier) ? TokenType.Keyword : TokenType.Identifier;
         
-        identifierType = TokenType.Identifier;
-        if (keywords.Contains(_line.Substring(startIndex, length))) identifierType = TokenType.Keyword;
-        return _line.Substring(startIndex, length);
+        return identifier;
     }
     
     private string LexIntegerLiteral(out TokenType integerType)
     {
         var startIndex = _charNum;
-        var length = 0;
-        var isFloat = false;
-        var currBase = '0';
-        Span<char> digitBases = ['b', 'o', 'x'];
-        if (CurrChar == '0' && digitBases.Contains(char.ToLower(NextChar)))
-        {
-            currBase = char.ToLower(NextChar);
-            length += 2;
-            _charNum += 2;
-        }
-        
-        for (; _charNum < _line.Length
-               && (InBase(CurrChar, currBase) || CurrChar == '_' || CurrChar == '.'); _charNum++)
-        {
-            length++;
-            if ((CurrChar == '_' && !InBase(NextChar, currBase)) || (NextChar == '_' && !InBase(CurrChar, currBase))) 
-                throw new LexerException($"Invalid integer literal: {Position()}");
-            if (CurrChar == '.')
-            {
-                if (isFloat) throw new LexerException($"Invalid integer literal: {Position()}");
-                isFloat = true;
-            }
-        }
-        
-        integerType = TokenType.ImaginaryLiteral;
-        if (_charNum < _line.Length && CurrChar == 'i')
-            return _line.Substring(startIndex, ++length);
-        _charNum--;
-        
-        integerType = TokenType.FloatingPointLiteral;
-        if (isFloat) return _line.Substring(startIndex, length);
-        
         integerType = TokenType.IntegerLiteral;
-        return _line.Substring(startIndex, length);
+        
+        var currBase = FindBase();
+        
+        while(IsValidDigit() && _charNum < _line.Length)
+        {
+            if ((CurrChar is '_' && !InBase(NextChar, currBase)) || (NextChar is '_' && CurrChar is '.')) throw new LexerException($"Invalid integer literal: {Position()}");
+            
+            if (CurrChar is '.')
+            {
+                if (integerType is TokenType.FloatingPointLiteral) throw new LexerException($"Invalid integer literal: {Position()}");
+                integerType = TokenType.FloatingPointLiteral;
+            }
+            
+            _charNum++;
+        }
+        
+        if (_charNum < _line.Length && NextChar is 'i') integerType = TokenType.ImaginaryLiteral;
+        else _charNum--;
+        
+        return _line[startIndex..(_charNum + 1)];
+        
+        bool IsValidDigit() => InBase(CurrChar, currBase) || CurrChar is '_' || CurrChar is '.';
+    }
+    
+    private char FindBase()
+    {
+        var baseChar = char.ToLower(NextChar);
+        Span<char> digitBases = ['b', 'o', 'x'];
+        if (CurrChar is '0' && digitBases.Contains(baseChar))
+        {
+            _charNum += 2;
+            return baseChar;
+        }
+        return '0';
     }
     
     private bool InBase(char intChar, char baseChar)
@@ -146,17 +149,17 @@ internal class Lexer(string filePath)
     private string LexComment()
     {
         var startIndex = _charNum;
-        if (NextChar == '/')
+        if (NextChar is '/')
         {
             _charNum = _line.Length;
-            return _line.Substring(startIndex);
+            return _line[startIndex..];
         }
         
         var stringBuilder = new StringBuilder();
         
         if (!_line.Contains("*/"))
         {
-            stringBuilder.Append(_line.Substring(startIndex));
+            stringBuilder.Append(_line[startIndex..]);
             _line = _fs.ReadLine() ?? string.Empty;
             _lineCount++;
         }
@@ -168,8 +171,8 @@ internal class Lexer(string filePath)
         }
         
         _charNum = _line.IndexOf("*/", StringComparison.Ordinal) + 1;
-        if (_charNum == 0) throw new LexerException($"Invalid comment {Position()}");
-        stringBuilder.Append(_line.Substring(0, _charNum + 1));
+        if (_charNum is 0) throw new LexerException($"Invalid comment {Position()}");
+        stringBuilder.Append(_line[0..(_charNum + 1)]);
         return stringBuilder.ToString();
     }
     
@@ -190,7 +193,7 @@ internal class Lexer(string filePath)
             var currWord = _line[_charNum..(_charNum + i)];
             if (operators.Where(n => n.Length == i).ToList().Contains(currWord))
             {
-                _charNum += i;
+                _charNum += i - 1;
                 return currWord;
             }
         }
@@ -229,9 +232,9 @@ internal class Lexer(string filePath)
         var stringStart = _line[_charNum];
         _charNum++;
         
-        while (_charNum < _line.Length && CurrChar != stringStart)
+        while (CurrChar != stringStart && _charNum < _line.Length)
         {
-            if (CurrChar == '\\' && NextChar == stringStart) _charNum++;
+            if (CurrChar is '\\' && NextChar == stringStart) _charNum++;
             _charNum++;
         }
         
@@ -262,10 +265,7 @@ internal enum TokenType
 
 internal class Token(string? value, TokenType tokenType)
 {
-    TokenType Type { get; } = tokenType;
-    string? Value { get; } = value;
-    
-    public override string ToString() => $"{Type}{((Value is not null) ? $": {Value}" : "")}";
+    public override string ToString() => $"{tokenType}{((value is not null) ? $": {value}" : "")}";
 }
 
 public class LexerException : Exception
