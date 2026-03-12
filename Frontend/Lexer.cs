@@ -12,7 +12,7 @@ internal class Lexer(string filePath): IDisposable
     
     private char CurrChar => _charNum < _line.Length ? _line[_charNum] : '\0';
     private char NextChar => _charNum + 1 < _line.Length ? _line[_charNum + 1] : '\0';
-    private string Position(int lineOffset = 0, int charOffset = 0) => $"{_lineCount + lineOffset}:{_charNum + 1 + charOffset} at {filePath}";
+    private string Position() => $"{_lineCount}:{_charNum + 1} at {filePath}";
     public bool EndOfStream => _fs.EndOfStream;
     
     public List<Token> Advance()
@@ -24,54 +24,45 @@ internal class Lexer(string filePath): IDisposable
         
         for (; _charNum < _line.Length; _charNum++)
         {
-            if (char.IsLetter(CurrChar) || CurrChar == '_')
+            TokenType tokenType;
+            switch (CurrChar)
             {
-                _tokenList.Add(new Token(LexIdentifier(out var identifierType), identifierType));
-                continue;
+                case var _ when char.IsLetter(CurrChar):
+                case '_':
+                    _tokenList.Add(new Token(LexIdentifier(out tokenType), tokenType));
+                    break;
+                
+                case var _ when char.IsDigit(CurrChar):
+                case '.' when NextChar is not '.':
+                    _tokenList.Add(new Token(LexIntegerLiteral(out tokenType), tokenType));
+                    break;
+                
+                case '/' when NextChar is '/' or '*':
+                    _tokenList.Add(new Token(LexComment(), TokenType.Comment));
+                    break;
+                
+                case ';':
+                    _tokenList.Add(new Token(null, TokenType.Semicolon));
+                    break;
+                
+                case '\'' when NextChar == '\\':
+                    _tokenList.Add(new Token(LexRuneLiteral(), TokenType.RuneLiteral));
+                    break;
+                
+                case '\"' or '\'':
+                    _tokenList.Add(new Token(LexStringLiteral(), TokenType.StringLiteral));
+                    break;
+                
+                case var _ when char.IsWhiteSpace(CurrChar):
+                    break;
+                
+                case var _ when LexOperator() is {} op:
+                    _tokenList.Add(new Token(op, TokenType.Operator));
+                    break;
+                
+                default: 
+                    throw new LexerException($"Unidentifiable token start: {Position()}");
             }
-            
-            if (char.IsDigit(CurrChar) || (CurrChar == '.' && NextChar != '.'))
-            {
-                _tokenList.Add(new Token(LexIntegerLiteral(out var integerType), integerType));
-                continue;
-            }
-            
-            if (CurrChar == '/' && NextChar is '/' or '*')
-            {
-                _tokenList.Add(new Token(LexComment(), TokenType.Comment));
-                continue;
-            }
-            
-            if (CurrChar == ';')
-            {
-                _tokenList.Add(new Token(null, TokenType.Semicolon));
-                continue;
-            }
-            
-            if (CurrChar == '\'')
-            {
-                _tokenList.Add(new Token(LexRuneLiteral(), TokenType.RuneLiteral));
-                continue;
-            }
-            
-            if (CurrChar is '\"' or '\'')
-            {
-                _tokenList.Add(new Token(LexStringLiteral(), TokenType.StringLiteral));
-                continue;
-            }
-            
-            if (char.IsWhiteSpace(CurrChar))
-            {
-                continue;
-            }
-            
-            if (LexOperatorAndPunctuation() is { } op)
-            {
-                _tokenList.Add(new Token(op, TokenType.OperatorAndPunctuation));
-                continue;
-            }
-            
-            throw new LexerException($"Unidentifiable token start: {Position()}");
         }
         
         return _tokenList;
@@ -182,9 +173,9 @@ internal class Lexer(string filePath): IDisposable
         return stringBuilder.ToString();
     }
     
-    private string? LexOperatorAndPunctuation()
+    private string? LexOperator()
     {
-        List<string> punctuations =
+        List<string> operators =
         [
             "+", "&", "+=", "&=", "&&", "==", "!=", "(", ")", "-", "|", "-=", "|=", "||", 
             "<", "<=", "[", "]", "*", "^", "*=", "^=", "<-", ">", ">=", "{", "}", "/",
@@ -192,11 +183,12 @@ internal class Lexer(string filePath): IDisposable
             "!", "...", ":", "&^", "&^=", "~"
         ];
         
-        for (var i = 3; i > 0; i--)
+        var largestOperator = operators.MaxBy(s => s.Length)!;
+        for (var i = largestOperator.Length ; i > 0; i--)
         {
             if (_charNum + i > _line.Length) continue;
             var currWord = _line[_charNum..(_charNum + i)];
-            if (punctuations.Where(n => n.Length == i).ToList().Contains(currWord))
+            if (operators.Where(n => n.Length == i).ToList().Contains(currWord))
             {
                 _charNum += i;
                 return currWord;
@@ -207,16 +199,10 @@ internal class Lexer(string filePath): IDisposable
     
     private string LexRuneLiteral()
     {
-        _charNum++;
-        if (CurrChar != '\\') throw new LexerException($"Invalid rune literal: {Position()}");
+        _charNum++; // consumes '
+        _charNum++; // consumes /
         
-        _charNum++;
-        var rune = CurrChar;
-        
-        _charNum++;
-        if (CurrChar != '\'') throw new LexerException($"Invalid rune literal: {Position()}");
-        
-        return rune switch
+        var rune = CurrChar switch
         {
             'a' => @"\a",
             'b' => @"\b",
@@ -228,8 +214,13 @@ internal class Lexer(string filePath): IDisposable
             '\\' => @"\\",
             '\'' => @"\'",
             '\"' => @"\""",
-            _ => throw new LexerException($"Invalid rune literal: {Position(0, -1)}")
+            _ => throw new LexerException($"Invalid rune literal: {Position()}")
         };
+        
+        _charNum++;
+        if (CurrChar != '\'') throw new LexerException($"Invalid rune literal: {Position()}");
+        
+        return rune;
     }
     
     private string LexStringLiteral()
@@ -261,7 +252,7 @@ internal enum TokenType
     Semicolon,
     Identifier,
     Keyword,
-    OperatorAndPunctuation,
+    Operator,
     IntegerLiteral,
     FloatingPointLiteral,
     ImaginaryLiteral,
