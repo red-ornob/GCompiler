@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Frontend;
 
-internal class Lexer(string filePath): IDisposable
+internal class Lexer(string filePath)
 {
     private readonly StreamReader _fs = new(filePath);
     private readonly List<Token> _tokenList = [];
@@ -240,7 +240,7 @@ internal class Lexer(string filePath): IDisposable
         return _line[startIndex..(_charNum + 1)];
     }
     
-    public void Dispose()
+    ~Lexer()
     {
         _fs.Dispose();
     }

@@ -15,7 +15,7 @@ static class Program
             return;
         }
         
-        using var lexer = new Lexer(args[0]);
+        var lexer = new Lexer(args[0]);
         while (!lexer.EndOfStream)
         {
             try
