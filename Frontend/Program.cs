@@ -15,19 +15,7 @@ static class Program
             return;
         }
         
-        var lexer = new Lexer(args[0]);
-        while (!lexer.EndOfStream)
-        {
-            try
-            {
-                foreach (var token in lexer.Advance()) Console.WriteLine(token);
-            }
-            catch (LexerException e)
-            {
-                Console.Error.WriteLine("Lexer Exception");
-                Console.Error.WriteLine(e.Message);
-                break;
-            }
-        }
+        var parser = new Parser(args[0]);
+        Console.WriteLine(parser.ToString());
     }
 }
