@@ -79,11 +79,10 @@ internal class Lexer(string filePath)
         var identifier = _line[startIndex..(_charNum + 1)];
         
         Span<string> keywords = [
-            "break", "default", "func", "interface", "select",
-            "case", "defer", "go", "map", "struct",
-            "chan", "else", "goto", "package", "switch",
-            "const", "fallthrough", "if", "range", "type",
-            "continue", "for", "import", "return", "var"
+            "break", "func", "interface", "struct",
+            "else", "goto", "package", "const", 
+            "if", "range", "type", "continue", 
+            "for", "import", "return", "var"
         ];
         identifierType = keywords.Contains(identifier) ? TokenType.Keyword : TokenType.Identifier;
         

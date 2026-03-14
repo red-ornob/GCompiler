@@ -15,7 +15,16 @@ static class Program
             return;
         }
         
-        var parser = new Parser(args[0]);
-        Console.WriteLine(parser.ToString());
+        BlockNode parser;
+        try
+        {
+            parser = new BlockNode(args[0]);
+            Console.WriteLine(parser.ToString());
+        }
+        catch (ParserException e)
+        {
+            Console.Error.WriteLine("Parser Exception");
+            Console.Error.WriteLine(e.Message);
+        }
     }
 }
