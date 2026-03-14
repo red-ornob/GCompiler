@@ -29,35 +29,35 @@ internal class Lexer(string filePath)
             {
                 case var _ when char.IsLetter(CurrChar):
                 case '_':
-                    _tokenList.Add(new Token(LexIdentifier(out tokenType), tokenType));
+                    _tokenList.Add(new Token(LexIdentifier(out tokenType), tokenType, Position()));
                     break;
                 
                 case var _ when char.IsDigit(CurrChar):
                 case '.' when NextChar is not '.':
-                    _tokenList.Add(new Token(LexIntegerLiteral(out tokenType), tokenType));
+                    _tokenList.Add(new Token(LexIntegerLiteral(out tokenType), tokenType, Position()));
                     break;
                 
                 case '/' when NextChar is '/' or '*':
-                    _tokenList.Add(new Token(LexComment(), TokenType.Comment));
+                    _tokenList.Add(new Token(LexComment(), TokenType.Comment, Position()));
                     break;
                 
                 case ';':
-                    _tokenList.Add(new Token(null, TokenType.Semicolon));
+                    _tokenList.Add(new Token(null, TokenType.Semicolon, Position()));
                     break;
                 
                 case '\'' when NextChar is '\\':
-                    _tokenList.Add(new Token(LexRuneLiteral(), TokenType.RuneLiteral));
+                    _tokenList.Add(new Token(LexRuneLiteral(), TokenType.RuneLiteral, Position()));
                     break;
                 
                 case '\"' or '\'':
-                    _tokenList.Add(new Token(LexStringLiteral(), TokenType.StringLiteral));
+                    _tokenList.Add(new Token(LexStringLiteral(), TokenType.StringLiteral, Position()));
                     break;
                 
                 case var _ when char.IsWhiteSpace(CurrChar):
                     break;
                 
                 case var _ when LexOperator() is {} op:
-                    _tokenList.Add(new Token(op, TokenType.Operator));
+                    _tokenList.Add(new Token(op, TokenType.Operator, Position()));
                     break;
                 
                 default: 
@@ -263,9 +263,12 @@ internal enum TokenType
     StringLiteral,
 }
 
-internal class Token(string? value, TokenType tokenType)
+internal class Token(string? value, TokenType tokenType, string position)
 {
-    public override string ToString() => $"{tokenType}{((value is not null) ? $": {value}" : "")}";
+    public TokenType TokenType { get; } = tokenType;
+    public string? Value { get; } = value;
+    public string Position { get; } = position;
+    public override string ToString() => $"{TokenType}{((Value is not null) ? $": {Value}" : "")}";
 }
 
 public class LexerException : Exception
@@ -274,13 +277,11 @@ public class LexerException : Exception
     {
     }
     
-    public LexerException(string message)
-        : base(message)
+    public LexerException(string message) : base(message)
     {
     }
     
-    public LexerException(string message, Exception inner)
-        : base(message, inner)
+    public LexerException(string message, Exception inner) : base(message, inner)
     {
     }
 }
