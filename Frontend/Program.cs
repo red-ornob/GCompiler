@@ -21,6 +21,11 @@ static class Program
             parser = new BlockNode(args[0]);
             Console.WriteLine(parser.ToString());
         }
+        catch (LexerException e)
+        {
+            Console.Error.WriteLine("Lexer Exception");
+            Console.Error.WriteLine(e.Message);
+        }
         catch (ParserException e)
         {
             Console.Error.WriteLine("Parser Exception");
