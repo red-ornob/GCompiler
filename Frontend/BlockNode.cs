@@ -40,7 +40,7 @@ internal abstract class Node
     
     protected Token? Peek(int amount)
     {
-        if (amount > 0) return Tokens[TokenIndex + amount];
+        if (amount < 0) return Tokens[TokenIndex + amount];
         if (!Consume(amount)) return null;
         var token = Tokens[TokenIndex];
         TokenIndex -= amount;
@@ -56,7 +56,7 @@ internal class BlockNode : Node
     
     public override string ToString()
     {
-        return $"{NodeName}: {string.Join(',', Children.Select(node => node.ToString()).ToList())}";
+        return $"{NodeName}: {string.Join(',', Children.Select(node => node.ToString()))}";
     }
     
     public BlockNode(string filename)
