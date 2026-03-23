@@ -1,40 +1,62 @@
 namespace Frontend;
 
+internal class Parser
+{
+    private Node RootNode { get; }
+    
+    public Parser(string filename)
+    {
+        Node.Lexer = new Lexer(filename);
+        RootNode = new BlockNode();
+    }
+    
+    public override string ToString() => RootNode.ToString();
+}
+
 internal abstract class Node
 {
-    public abstract string NodeName { get; init; }
-    
     public abstract override string ToString();
     
-    protected static Lexer? Lexer { get; set; }
+    public static Lexer? Lexer
+    {
+        get;
+        set => field ??= value;
+    }
+    
     protected static List<Token> Tokens { get; } = [];
     private static int TokenIndex { get; set; }
     protected static Token Token => Tokens[TokenIndex];
     
     protected static T? Parse<T>() where T : Node, new()
     {
-        var result = new T();
-        return result.IsParsed ? result : null;
+        try
+        {
+            return new T();
+        }
+        catch (ParserException)
+        {
+            return null;
+        }
     }
     
     protected bool IsParsed;
     protected bool ParsingCondition => !(Lexer!.EndOfStream && TokenIndex >= Tokens.Count) && !IsParsed;
     
-    protected void ReplenishTokens()
+    protected static void ReplenishTokens(int minTokens = 1)
     {
         if (TokenIndex < Tokens.Count || Lexer!.EndOfStream) return;
-        List<Token> newTokens;
-        do
+        while (minTokens > 0 && !Lexer.EndOfStream)
         {
-            newTokens = Lexer.Advance();
-        } while (newTokens.Count == 0 && !Lexer.EndOfStream);
-        Tokens.AddRange(newTokens);
+            var newTokens = Lexer.Advance();
+            Tokens.AddRange(newTokens);
+            minTokens -= newTokens.Count;
+        }
     }
     
     protected bool Consume(int amount)
     {
         TokenIndex += amount;
-        ReplenishTokens();
+        ReplenishTokens(amount);
         return TokenIndex < Tokens.Count;
     }
     
@@ -48,33 +70,18 @@ internal abstract class Node
     }
 }
 
-internal class BlockNode : Node
+file class BlockNode : Node
 {
-    public override string NodeName { get; init; } = "block";
-    
     private List<Node> Children { get; } = [];
     
-    public override string ToString()
-    {
-        return $"{NodeName}: {string.Join(',', Children.Select(node => node.ToString()))}";
-    }
-    
-    public BlockNode(string filename)
-    {
-        Lexer = new Lexer(filename);
-        ProcessBlock();
-    }
+    public override string ToString() => $"Block: {string.Join(',', Children.Select(node => node.ToString()))}";
     
     public BlockNode()
-    {
-        ProcessBlock();
-    }
-    
-    private void ProcessBlock()
     {
         if (Lexer is null) throw new ParserException("Lexer is null");
         
         bool isRoot = Tokens.Count == 0;
+        var initialPos = isRoot ? null : Token.Position;
         
         ReplenishTokens();
         while (ParsingCondition)
@@ -83,20 +90,18 @@ internal class BlockNode : Node
             {
                 case {TokenType: TokenType.Operator, Value: "{"}:
                     Consume(1);
-                    if (Parse<BlockNode>() is { } block) Children.Add(block);
-                    else throw new ParserException($"Error parsing block at {Token.Position}");
+                    Children.Add(new BlockNode());
                     break;
                 
                 case {TokenType: TokenType.Operator, Value: "}"}:
-                    Consume(1);
                     if (!isRoot) IsParsed = true;
                     else throw new ParserException($"Unexpected }} at {Token.Position}");
+                    Consume(1);
                     break;
                 
                 case {TokenType: TokenType.Identifier}:
                 case {TokenType: TokenType.Keyword}:
-                    if (GetNode(Token)() is { } node) Children.Add(node);
-                    else throw new ParserException($"Error parsing {Token.Value} token at {Token.Position}");
+                    Children.Add(GetNode(Token));
                     break;
                 
                 case {TokenType: TokenType.Comment}:
@@ -111,27 +116,28 @@ internal class BlockNode : Node
         }
         
         if (isRoot) IsParsed = true;
+        else if (!IsParsed) throw new ParserException($"Incomplete block at {initialPos}");
     }
     
-    private static Func<Node?> GetNode(Token token) => token.Value switch
+    private static Node GetNode(Token token) => token.Value switch
     {
-        // "break" => Parse<BreakNode>,
-        // "func" => Parse<FuncNode>,
-        // "interface" => Parse<InterfaceNode>,
-        // "struct" => Parse<StructNode>,
-        // "else" => Parse<ElseNode>,
-        // "goto" => Parse<GotoNode>,
-        // "package" => Parse<PackageNode>,
-        // "const" => Parse<ConstNode>,
-        // "if" => Parse<IfNode>,
-        // "range" => Parse<RangeNode>,
-        // "type" => Parse<TypeNode>,
-        // "continue" => Parse<ContinueNode>,
-        // "for" => Parse<ForNode>,
-        // "import" => Parse<ImportNode>,
-        // "return" => Parse<ReturnNode>,
-        // "var" => Parse<VarNode>,
-        // _ => Parse<IdentifierNode>,
+        // "break" => new BreakNode(),
+        // "func" => new FuncNode(),
+        // "interface" => new InterfaceNode(),
+        // "struct" => new StructNode(),
+        // "else" => new ElseNode(),
+        // "goto" => new GotoNode(),
+        // "package" => new PackageNode(),
+        // "const" => new ConstNode(),
+        // "if" => new IfNode(),
+        // "range" => new RangeNode(),
+        // "type" => new TypeNode(),
+        // "continue" => new ContinueNode(),
+        // "for" => new ForNode(),
+        // "import" => new ImportNode(),
+        // "return" => new ReturnNode(),
+        // "var" => new VarNode(),
+        // _ => new IdentifierNode(),
         _ => throw new NotImplementedException(),
     };
 }

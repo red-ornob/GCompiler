@@ -15,10 +15,9 @@ static class Program
             return;
         }
         
-        BlockNode parser;
         try
         {
-            parser = new BlockNode(args[0]);
+            var parser = new Parser(args[0]);
             Console.WriteLine(parser.ToString());
         }
         catch (LexerException e)
