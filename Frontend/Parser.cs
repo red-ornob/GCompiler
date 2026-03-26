@@ -40,7 +40,7 @@ internal abstract class Node
     }
     
     protected bool IsParsed;
-    protected bool ParsingCondition => !(Lexer!.EndOfStream && TokenIndex >= Tokens.Count) && !IsParsed;
+    protected static bool IsOutOfTokens => Lexer!.EndOfStream && TokenIndex >= Tokens.Count;
     
     protected static void ReplenishTokens(int minTokens = 1)
     {
@@ -70,11 +70,11 @@ internal abstract class Node
     }
 }
 
-file class BlockNode : Node
+internal class BlockNode : Node
 {
     private List<Node> Children { get; } = [];
     
-    public override string ToString() => $"Block: {string.Join(',', Children.Select(node => node.ToString()))}";
+    public override string ToString() => $"Block({string.Join(",", Children.Select(node => node.ToString()))})";
     
     public BlockNode()
     {
@@ -84,7 +84,7 @@ file class BlockNode : Node
         var initialPos = isRoot ? null : Token.Position;
         
         ReplenishTokens();
-        while (ParsingCondition)
+        while (!(IsOutOfTokens) && !IsParsed)
         {
             switch (Token)
             {
@@ -121,7 +121,7 @@ file class BlockNode : Node
     
     private static Node GetNode(Token token) => token.Value switch
     {
-        // "break" => new BreakNode(),
+        "break" => new BreakNode(),
         // "func" => new FuncNode(),
         // "interface" => new InterfaceNode(),
         // "struct" => new StructNode(),
@@ -132,7 +132,7 @@ file class BlockNode : Node
         // "if" => new IfNode(),
         // "range" => new RangeNode(),
         // "type" => new TypeNode(),
-        // "continue" => new ContinueNode(),
+        "continue" => new ContinueNode(),
         // "for" => new ForNode(),
         // "import" => new ImportNode(),
         // "return" => new ReturnNode(),
@@ -140,6 +140,34 @@ file class BlockNode : Node
         // _ => new IdentifierNode(),
         _ => throw new NotImplementedException(),
     };
+}
+
+internal class BreakNode : Node
+{
+    public override string ToString() => "Break";
+    
+    public BreakNode()
+    {
+        var position = Token.Position;
+        Consume(1);
+        if (!IsOutOfTokens && Token.TokenType == TokenType.Semicolon) IsParsed = true;
+        else throw new ParserException($"Missing semicolon at {position}");
+        Consume(1);
+    }
+}
+
+internal class ContinueNode : Node
+{
+    public override string ToString() => "Continue";
+    
+    public ContinueNode()
+    {
+        var position = Token.Position;
+        Consume(1);
+        if (!IsOutOfTokens && Token.TokenType == TokenType.Semicolon) IsParsed = true;
+        else throw new ParserException($"Missing semicolon at {position}");
+        Consume(1);
+    }
 }
 
 public class ParserException : Exception
