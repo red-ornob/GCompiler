@@ -88,24 +88,24 @@ internal class BlockNode : Node
         {
             switch (Token)
             {
-                case {TokenType: TokenType.Operator, Value: "{"}:
+                case {Type: TokenType.Operator, Value: "{"}:
                     Consume(1);
                     Children.Add(new BlockNode());
                     break;
                 
-                case {TokenType: TokenType.Operator, Value: "}"}:
+                case {Type: TokenType.Operator, Value: "}"}:
                     if (!isRoot) IsParsed = true;
                     else throw new ParserException($"Unexpected }} at {Token.Position}");
                     Consume(1);
                     break;
                 
-                case {TokenType: TokenType.Identifier}:
-                case {TokenType: TokenType.Keyword}:
+                case {Type: TokenType.Identifier}:
+                case {Type: TokenType.Keyword}:
                     Children.Add(GetNode(Token));
                     break;
                 
-                case {TokenType: TokenType.Comment}:
-                case {TokenType: TokenType.Semicolon}:
+                case {Type: TokenType.Comment}:
+                case {Type: TokenType.Semicolon}:
                     Consume(1);
                     break;
                 
@@ -150,7 +150,7 @@ internal class BreakNode : Node
     {
         var position = Token.Position;
         Consume(1);
-        if (!IsOutOfTokens && Token.TokenType == TokenType.Semicolon) IsParsed = true;
+        if (!IsOutOfTokens && Token.Type == TokenType.Semicolon) IsParsed = true;
         else throw new ParserException($"Missing semicolon at {position}");
         Consume(1);
     }
@@ -164,7 +164,7 @@ internal class ContinueNode : Node
     {
         var position = Token.Position;
         Consume(1);
-        if (!IsOutOfTokens && Token.TokenType == TokenType.Semicolon) IsParsed = true;
+        if (!IsOutOfTokens && Token.Type == TokenType.Semicolon) IsParsed = true;
         else throw new ParserException($"Missing semicolon at {position}");
         Consume(1);
     }

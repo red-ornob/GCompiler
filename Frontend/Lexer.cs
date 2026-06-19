@@ -264,10 +264,10 @@ internal enum TokenType
 
 internal class Token(string? value, TokenType tokenType, string position)
 {
-    public TokenType TokenType { get; } = tokenType;
+    public TokenType Type { get; } = tokenType;
     public string? Value { get; } = value;
     public string Position { get; } = position;
-    public override string ToString() => $"{TokenType}{((Value is not null) ? $": {Value}" : "")}";
+    public override string ToString() => $"{Type}{((Value is not null) ? $": {Value}" : "")}";
 }
 
 public class LexerException : Exception
