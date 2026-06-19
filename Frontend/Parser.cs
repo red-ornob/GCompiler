@@ -142,6 +142,62 @@ internal class BlockNode : Node
     };
 }
 
+internal class ExpressionNode : Node
+{
+    public override string ToString() => "Expression";
+    public ExpressionType Type { get; }
+    public ExpressionNode? LeftHandSide { get; }
+    public ExpressionNode? RightHandSide { get; }
+    public string Value { get; }
+    
+    public enum ExpressionType { Root, Operand, Expression, Assignment }
+    
+    private (float left, float right) GetBindingPower(string? op) => op switch
+    {
+        null or "(" => (0f, 0f),
+        "+" or "-" => (1.0f, 1.1f),
+        "*" or "/" => (2.0f, 2.1f),
+        _ => throw new ParserException($"Unknown operator at {Token.Position}")
+    };
+    
+    public ExpressionNode(float rightBindingPower = 0, bool makeAtomNode = false)
+    {
+        if (makeAtomNode 
+            || (Peek(1) is var nextToken && nextToken is { Type: TokenType.Semicolon } or { Type: TokenType.Operator, Value: ")" }) 
+            || (nextToken is { Type: TokenType.Operator } && rightBindingPower > GetBindingPower(nextToken.Value).left))
+        {
+            Value = Token.Value!;
+            Type = ExpressionType.Operand;
+            LeftHandSide = null;
+            RightHandSide = null;
+            Consume(1);
+            return;
+        }
+        
+        switch (Token.Type)
+        {
+            case TokenType.Identifier or TokenType.StringLiteral or TokenType.RuneLiteral or TokenType.IntegerLiteral or TokenType.FloatingPointLiteral or TokenType.ImaginaryLiteral:
+                LeftHandSide = new ExpressionNode(makeAtomNode: true);
+                
+                if (Token.Type is not TokenType.Operator and not TokenType.Keyword) throw new ParserException($"Expected an operator, got {Token.Type} at {Token.Position}");
+                
+                Type = ExpressionType.Expression;
+                if (Token is { Type: TokenType.Operator, Value: "=" }) Type = ExpressionType.Assignment;
+                Value = Token.Value!;
+                rightBindingPower = GetBindingPower(Value).right;
+                Consume(1);
+                RightHandSide = new ExpressionNode(rightBindingPower);
+                return;
+            
+            case TokenType.Operator when Token.Value is "(":
+                throw new NotImplementedException();
+            
+            default:
+                throw new ParserException($"Unexpected token at {Token.Position}");
+        }
+    }
+}
+
 internal class BreakNode : Node
 {
     public override string ToString() => "Break";
