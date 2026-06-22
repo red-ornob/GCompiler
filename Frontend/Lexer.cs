@@ -5,67 +5,76 @@ namespace Frontend;
 internal class Lexer(string filePath)
 {
     private readonly StreamReader _fs = new(filePath);
-    private readonly List<Token> _tokenList = [];
-    private string _line = "";
-    private int _lineCount;
-    private int _charNum;
+    private List<char> _line = [];
     
-    private char CurrChar => _charNum < _line.Length ? _line[_charNum] : '\0';
-    private char NextChar => _charNum + 1 < _line.Length ? _line[_charNum + 1] : '\0';
-    private string Position() => $"{_lineCount}:{_charNum + 1} at {filePath}";
-    public bool EndOfStream => _fs.EndOfStream;
-    
-    public List<Token> Advance()
+    private int CharNum { get; set; }
+    private int LineNum { get; set; }
+    private char GetChar(int index = 0) 
     {
-        _tokenList.Clear();
-        _line = _fs.ReadLine() ?? string.Empty;
-        _lineCount++;
-        _charNum = 0;
-        
-        for (; _charNum < _line.Length; _charNum++)
+        while (CharNum + index >= _line.Count)
+        {
+            if (_fs.ReadLine() is {} fsLine) _line.AddRange(fsLine);
+            else throw new LexerException("Unexpected end of file");
+            LineNum++;
+        }
+        return _line[CharNum];
+    }
+    
+    private string Position() => $"{LineNum}:{CharNum + 1} at {filePath}";
+    
+    private List<Token> TokenList { get; } = [];
+    public int TokenNum { get; set; } = 0;
+    public Token Read(int index = 0)
+    {
+        while (TokenNum + index >= TokenList.Count)
+        {
+            TokenList.Add(Advance());
+        }
+        return TokenList[TokenNum];
+    }
+    
+    private Token Advance()
+    {
+        while (true)
         {
             TokenType tokenType;
-            switch (CurrChar)
+            switch (GetChar())
             {
-                case var _ when char.IsLetter(CurrChar):
+                case var _ when char.IsLetter(GetChar()):
                 case '_':
-                    _tokenList.Add(new Token(LexIdentifier(out tokenType), tokenType, Position()));
-                    break;
+                    return new Token(LexIdentifier(out tokenType), tokenType, Position());
                 
-                case var _ when char.IsDigit(CurrChar):
-                case '.' when NextChar is not '.':
-                    _tokenList.Add(new Token(LexIntegerLiteral(out tokenType), tokenType, Position()));
-                    break;
+                case var _ when char.IsDigit(GetChar()):
+                case '.' when GetChar(1) is not '.':
+                    return new Token(LexIntegerLiteral(out tokenType), tokenType, Position());
                 
-                case '/' when NextChar is '/' or '*':
-                    _tokenList.Add(new Token(LexComment(), TokenType.Comment, Position()));
-                    break;
+                case '/' when GetChar(1) is '/' or '*':
+                    LexComment();
+                     break;
                 
                 case ';':
-                    _tokenList.Add(new Token(null, TokenType.Semicolon, Position()));
-                    break;
+                    return new Token(null, TokenType.Semicolon, Position());
                 
-                case '\'' when NextChar is '\\':
-                    _tokenList.Add(new Token(LexRuneLiteral(), TokenType.RuneLiteral, Position()));
-                    break;
+                case '\'' when GetChar(1) is '\\':
+                    return new Token(LexRuneLiteral(), TokenType.RuneLiteral, Position());
                 
                 case '\"' or '\'':
-                    _tokenList.Add(new Token(LexStringLiteral(), TokenType.StringLiteral, Position()));
-                    break;
+                    return new Token(LexStringLiteral(), TokenType.StringLiteral, Position());
                 
-                case var _ when char.IsWhiteSpace(CurrChar):
+                case var _ when char.IsWhiteSpace(GetChar()):
+                    do 
+                    {
+                        CharNum++;
+                    } while (char.IsWhiteSpace(GetChar()));
                     break;
                 
                 case var _ when LexOperator() is {} op:
-                    _tokenList.Add(new Token(op, TokenType.Operator, Position()));
-                    break;
+                    return new Token(op, TokenType.Operator, Position());
                 
                 default: 
                     throw new LexerException($"Unidentifiable token start: {Position()}");
             }
         }
-        
-        return _tokenList;
     }
     
     private string LexIdentifier(out TokenType identifierType)
