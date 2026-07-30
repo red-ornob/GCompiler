@@ -22,10 +22,7 @@ static class Program
             var lexer = new Lexer(args[0]);
             while (true)
             {
-                var token = lexer.Read();
-                if  (token == null) return;
-                Console.WriteLine($"{token.Type}: {token.Value ?? "null"}  at {token.Position}");
-                lexer.TokenNum++;
+                Parser parser = new Parser(lexer);
             }
         }
         catch (LexerException e)
@@ -33,11 +30,11 @@ static class Program
             Console.Error.WriteLine("Lexer Exception");
             Console.Error.WriteLine(e.Message);
         }
-        // catch (EndOfStreamException e)
-        // {
-            // Console.Error.WriteLine("Lexer Exception");
-            // Console.Error.WriteLine(e.Message);
-        // }
+        catch (EndOfStreamException e)
+        {
+            Console.Error.WriteLine("EndOfStream Exception");
+            Console.Error.WriteLine(e.Message);
+        }
         // catch (ParserException e)
         // {
         //     Console.Error.WriteLine("Parser Exception");
